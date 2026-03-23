@@ -21,51 +21,61 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Write OCI API private key
+      - name: Setup all OCI files
         env:
-          KEY: ${{ secrets.OCI_KEY_FILE }}
+          S_USER: ${{ secrets.OCI_USER }}
+          S_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          S_TENANCY: ${{ secrets.OCI_TENANCY }}
+          S_REGION: ${{ secrets.OCI_REGION }}
+          S_KEY_FILE: ${{ secrets.OCI_KEY_FILE }}
+          S_SSH_PUBKEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          S_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
+          S_AD: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
         run: |
-          mkdir -p /home/runner/.oci
-          printf '%s' "$KEY" > /home/runner/.oci/oci_api_key.pem
-          chmod 600 /home/runner/.oci/oci_api_key.pem
+          python3 << 'PYEOF'
+          import os, pathlib
 
-      - name: Write SSH public key
-        env:
-          PUBKEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
-        run: |
-          printf '%s' "$PUBKEY" > /tmp/ssh_authorized_keys.pub
+          oci_dir = pathlib.Path('/home/runner/.oci')
+          oci_dir.mkdir(parents=True, exist_ok=True)
 
-      - name: Write OCI SDK config
-        run: |
-          mkdir -p /home/runner/.oci
-          {
-            echo "[DEFAULT]"
-            echo "user=${{ secrets.OCI_USER }}"
-            echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}"
-            echo "tenancy=${{ secrets.OCI_TENANCY }}"
-            echo "region=${{ secrets.OCI_REGION }}"
-            echo "key_file=/home/runner/.oci/oci_api_key.pem"
-          } > /home/runner/.oci/config
-          chmod 600 /home/runner/.oci/config
+          key_path = oci_dir / 'oci_api_key.pem'
+          key_path.write_text(os.environ['S_KEY_FILE'])
+          key_path.chmod(0o600)
 
-      - name: Write oci.env
-        run: |
-          {
-            echo "OCI_CONFIG=/home/runner/.oci/config"
-            echo "OCT_FREE_AD=${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
-            echo "DISPLAY_NAME=imagiax-demo"
-            echo "OCI_COMPUTE_SHAPE=VM.Standard.A1.Flex"
-            echo "SECOND_MICRO_INSTANCE=False"
-            echo "REQUEST_WAIT_TIME_SECS=30"
-            echo "SSH_AUTHORIZED_KEYS_FILE=/tmp/ssh_authorized_keys.pub"
-            echo "OCI_SUBNET_ID=${{ secrets.OCI_SUBNET_ID }}"
-            echo "OCI_IMAGE_ID="
-            echo "OPERATING_SYSTEM=Canonical Ubuntu"
-            echo "OS_VERSION=20.04"
-            echo "ASSIGN_PUBLIC_IP=True"
-            echo "BOOT_VOLUME_SIZE=50"
-            echo "NOTIFY_EMAIL=False"
-          } > oci.env
+          ssh_pub_path = pathlib.Path('/tmp/ssh_authorized_keys.pub')
+          ssh_pub_path.write_text(os.environ['S_SSH_PUBKEY'])
+
+          config_path = oci_dir / 'config'
+          config_path.write_text(
+              '[DEFAULT]\n'
+              f"user={os.environ['S_USER']}\n"
+              f"fingerprint={os.environ['S_FINGERPRINT']}\n"
+              f"tenancy={os.environ['S_TENANCY']}\n"
+              f"region={os.environ['S_REGION']}\n"
+              f"key_file={key_path}\n"
+          )
+          config_path.chmod(0o600)
+
+          pathlib.Path('oci.env').write_text(
+              f"OCI_CONFIG={config_path}\n"
+              f"OCT_FREE_AD={os.environ['S_AD']}\n"
+              "DISPLAY_NAME=imagiax-demo\n"
+              "OCI_COMPUTE_SHAPE=VM.Standard.A1.Flex\n"
+              "SECOND_MICRO_INSTANCE=False\n"
+              "REQUEST_WAIT_TIME_SECS=30\n"
+              f"SSH_AUTHORIZED_KEYS_FILE={ssh_pub_path}\n"
+              f"OCI_SUBNET_ID={os.environ['S_SUBNET_ID']}\n"
+              "OCI_IMAGE_ID=\n"
+              "OPERATING_SYSTEM=Canonical Ubuntu\n"
+              "OS_VERSION=20.04\n"
+              "ASSIGN_PUBLIC_IP=True\n"
+              "BOOT_VOLUME_SIZE=50\n"
+              "NOTIFY_EMAIL=False\n"
+          )
+
+          print(f'Config file exists: {config_path.exists()}, size: {config_path.stat().st_size}b')
+          print(f'oci.env exists: {pathlib.Path("oci.env").exists()}')
+          PYEOF
 
       - name: Run instance creation script
         run: python main.py
