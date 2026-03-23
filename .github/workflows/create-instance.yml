@@ -1,0 +1,71 @@
+name: Oracle Free Tier Instance Creation
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  create-instance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write OCI API private key
+        env:
+          KEY: ${{ secrets.OCI_KEY_FILE }}
+        run: |
+          mkdir -p /home/runner/.oci
+          printf '%s' "$KEY" > /home/runner/.oci/oci_api_key.pem
+          chmod 600 /home/runner/.oci/oci_api_key.pem
+
+      - name: Write SSH public key
+        env:
+          PUBKEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+        run: |
+          printf '%s' "$PUBKEY" > /tmp/ssh_authorized_keys.pub
+
+      - name: Write OCI SDK config
+        run: |
+          mkdir -p /home/runner/.oci
+          {
+            echo "[DEFAULT]"
+            echo "user=${{ secrets.OCI_USER }}"
+            echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}"
+            echo "tenancy=${{ secrets.OCI_TENANCY }}"
+            echo "region=${{ secrets.OCI_REGION }}"
+            echo "key_file=/home/runner/.oci/oci_api_key.pem"
+          } > /home/runner/.oci/config
+          chmod 600 /home/runner/.oci/config
+
+      - name: Write oci.env
+        run: |
+          {
+            echo "OCI_CONFIG=/home/runner/.oci"
+            echo "OCT_FREE_AD=${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
+            echo "DISPLAY_NAME=imagiax-demo"
+            echo "OCI_COMPUTE_SHAPE=VM.Standard.A1.Flex"
+            echo "SECOND_MICRO_INSTANCE=False"
+            echo "REQUEST_WAIT_TIME_SECS=30"
+            echo "SSH_AUTHORIZED_KEYS_FILE=/tmp/ssh_authorized_keys.pub"
+            echo "OCI_SUBNET_ID=${{ secrets.OCI_SUBNET_ID }}"
+            echo "OCI_IMAGE_ID="
+            echo "OPERATING_SYSTEM=Canonical Ubuntu"
+            echo "OS_VERSION=20.04"
+            echo "ASSIGN_PUBLIC_IP=True"
+            echo "BOOT_VOLUME_SIZE=50"
+            echo "NOTIFY_EMAIL=False"
+          } > oci.env
+
+      - name: Run instance creation script
+        run: python main.py
