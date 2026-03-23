@@ -73,8 +73,8 @@ jobs:
               "NOTIFY_EMAIL=False\n"
           )
 
-          print(f'Config file exists: {config_path.exists()}, size: {config_path.stat().st_size}b')
-          print(f'oci.env exists: {pathlib.Path("oci.env").exists()}')
+          print(f"Config OK: {config_path.exists()}, {config_path.stat().st_size}b")
+          print(f"oci.env OK: {pathlib.Path('oci.env').stat().st_size}b")
           PYEOF
 
       - name: Run instance creation script
