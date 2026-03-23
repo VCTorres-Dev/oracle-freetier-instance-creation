@@ -51,7 +51,7 @@ jobs:
       - name: Write oci.env
         run: |
           {
-            echo "OCI_CONFIG=/home/runner/.oci"
+            echo "OCI_CONFIG=/home/runner/.oci/config"
             echo "OCT_FREE_AD=${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
             echo "DISPLAY_NAME=imagiax-demo"
             echo "OCI_COMPUTE_SHAPE=VM.Standard.A1.Flex"
